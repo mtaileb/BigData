@@ -1,1 +1,8 @@
 sqoop import --connect jdbc:mysql://bdd-tp-sqoop.cbibtnli8hwd.us-west-2.rds.amazonaws.com:3306/demo_sqoop --username cloudera --password cloudera --table matable --target-dir /user/cloudera/sqoopdata1 --m 1
+
+sqoop export --connect jdbc:mysql://localhost/company --username
+root --password password --table employe_export --export-dir /
+data/employe
+
+sqoop import --connect jdbc:mysql://localhost:3306/ma-base  
+--username root --password password --target-dir /data/employe_requete_1 --query 'select * from employe where id>20' --m 1
