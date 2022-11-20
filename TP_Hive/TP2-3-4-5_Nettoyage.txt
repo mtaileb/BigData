@@ -1,0 +1,204 @@
+--#######################################################################################################################################
+--#######################################################################################################################################
+--
+--#######################################################################################################################################
+CREATE DATABASE IF NOT EXISTS assessdb;
+USE assessdb;
+
+--#######################################################################################################################################
+// Créon une table intérimaire 'firstname001' qui va permettre d'enlever l'en-tête des colonnes:
+
+CREATE TABLE IF NOT EXISTS assessdb.firstname001 (
+  firstnameid    string,
+  firstname      string,
+  sex            string
+)
+
+# Attention ce qui suit ne passe pas dans Hortonworks, donc à supprimer:
+CLUSTERED BY (firstnameid) INTO 1 BUCKETS
+STORED AS orc 
+TBLPROPERTIES('transactional' = 'true','orc.compress'='ZLIB','orc.create.index'='true');
+
+TRUNCATE TABLE assessdb.firstname001;
+
+// Chargeons maintenant la table:
+
+INSERT INTO TABLE assessdb.firstname001 
+SELECT firstnameid, firstname, sex 
+FROM retrievedb.rawfirstname 
+WHERE firstnameid <> '"id"';
+
+SELECT * FROM firstname001 LIMIT 10;
+
+--#######################################################################################################################################
+
+// Nous souhatons concertir firstnameid (la première colonne) de string à integer, et aussi enlever les guillemets avant et après chaque prénom. Créons donc une autre table intermédiaire firstname002:
+
+CREATE TABLE IF NOT EXISTS assessdb.firstname002 (
+  firstnameid    int,
+  firstname      string,
+  sex            string
+)
+
+# Attention ce qui suit ne passe pas dans Hortonworks, donc à supprimer:
+CLUSTERED BY (firstnameid) INTO 1 BUCKETS
+STORED AS orc 
+TBLPROPERTIES('transactional' = 'true','orc.compress'='ZLIB','orc.create.index'='true');
+
+TRUNCATE TABLE assessdb.firstname002;
+
+// Chargeons maintenant les données dans firstname002 à partir (bien sûr) de firstname001:
+
+INSERT INTO TABLE assessdb.firstname002 
+SELECT CAST(firstnameid as INT), SUBSTRING(firstname,2,LENGTH(firstname)-2), SUBSTRING(sex,2,LENGTH(sex)-2) 
+FROM assessdb.firstname001;
+
+SELECT * FROM firstname002 LIMIT 10;
+
+--#######################################################################################################################################
+
+// Maintenant on veut trimer les espaces avant ou après les prénoms.
+// Pour cela on va créer une seconde table intérimaire 'firstname003'
+
+CREATE TABLE IF NOT EXISTS assessdb.firstname003 (
+  firstnameid    string,
+  firstname      string,
+  sex            string
+)
+
+# Attention ce qui suit ne passe pas dans Hortonworks, donc à supprimer:
+CLUSTERED BY (firstnameid) INTO 1 BUCKETS
+STORED AS orc 
+TBLPROPERTIES('transactional' = 'true','orc.compress'='ZLIB','orc.create.index'='true');
+
+TRUNCATE TABLE assessdb.firstname003;
+
+// Chargeons les données à partir de  'firstname001' et en effectuant le nettoyage des espaces avec rtrim() et ltrim():
+
+INSERT INTO TABLE assessdb.firstname003 
+SELECT firstnameid, rtrim(ltrim(firstname)), rtrim(ltrim(sex)) 
+FROM assessdb.firstname002;
+
+SELECT * FROM firstname003 LIMIT 10;
+
+--#######################################################################################################################################
+
+// Créons maintenant la table finale de données nettoyées!
+
+CREATE TABLE IF NOT EXISTS assessdb.firstname (
+  firstnameid    int,
+  firstname      string,
+  sex            string
+)
+
+# Attention ce qui suit ne passe pas dans Hortonworks, donc à supprimer:
+CLUSTERED BY (firstnameid) INTO 1 BUCKETS
+STORED AS orc 
+TBLPROPERTIES('transactional' = 'true','orc.compress'='ZLIB','orc.create.index'='true');
+
+TRUNCATE TABLE assessdb.firstname;
+
+// Et chargeons-la avec un Order By su l'ID:
+
+INSERT INTO TABLE assessdb.firstname 
+SELECT firstnameid, firstname, sex 
+FROM assessdb.firstname003 
+ORDER BY firstnameid;
+
+// Faisons sur cette table un SELECT avec un SORT BY pour vérifier que tout colle:
+
+SELECT firstnameid, firstname, sex from assessdb.firstname SORT BY firstname LIMIT 10;
+
+--#######################################################################################################################################
+
+Maintenant réalisez les mêmes traitements sur la table rawlastname.
+
+--#######################################################################################################################################
+
+// Maintenant nous allons créer la COMBINAISON DE TABLES 'person' (en passant par deux tables intermédiaires) qui regroupera les tables 'firstname' et 'lastname' grace à des JOIN:
+
+CREATE TABLE IF NOT EXISTS assessdb.person001 (
+  persid         string,
+  firstnameid    string,
+  lastnameid     string
+)
+
+# Attention ce qui suit ne passe pas dans Hortonworks, donc à supprimer:
+CLUSTERED BY (persid) INTO 1 BUCKETS
+STORED AS orc 
+TBLPROPERTIES('transactional' = 'true','orc.compress'='ZLIB','orc.create.index'='true');
+
+TRUNCATE TABLE assessdb.person001;
+
+INSERT INTO TABLE assessdb.person001 
+SELECT persid, firstnameid, lastnameid 
+FROM retrievedb.rawperson 
+WHERE persid <> '"id"';
+
+--#######################################################################################################################################
+CREATE TABLE IF NOT EXISTS assessdb.person002 (
+  persid         int,
+  firstnameid    int,
+  lastnameid     int
+)
+
+# Attention ce qui suit ne passe pas dans Hortonworks, donc à supprimer:
+CLUSTERED BY (persid) INTO 1 BUCKETS
+STORED AS orc 
+TBLPROPERTIES('transactional' = 'true','orc.compress'='ZLIB','orc.create.index'='true');
+
+TRUNCATE TABLE assessdb.person002;
+
+// Notez qu'on converit dans ce qui suit le type de persid, firstnameid et lastnameid:
+
+INSERT INTO TABLE assessdb.person002 
+SELECT CAST(persid as INT), CAST(firstnameid as INT), CAST(lastnameid as INT) 
+FROM assessdb.person001;
+
+--#######################################################################################################################################
+CREATE TABLE IF NOT EXISTS assessdb.person (
+  persid         int,
+  firstnameid    int,
+  lastnameid     int
+)
+
+# Attention ce qui suit ne passe pas dans Hortonworks, donc à supprimer:
+CLUSTERED BY (persid) INTO 1 BUCKETS
+STORED AS orc 
+TBLPROPERTIES('transactional' = 'true','orc.compress'='ZLIB','orc.create.index'='true');
+
+TRUNCATE TABLE assessdb.person;
+
+INSERT INTO TABLE assessdb.person 
+SELECT persid, firstnameid, lastnameid 
+FROM assessdb.person002;
+
+--#######################################################################################################################################
+CREATE TABLE IF NOT EXISTS assessdb.personfull(
+  persid       int,
+  firstnameid  int,
+  firstname    string,
+  lastnameid   int,
+  lastname     string,
+  sex          string
+)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
