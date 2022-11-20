@@ -1,8 +1,15 @@
-sqoop import --connect jdbc:mysql://bdd-tp-sqoop.cbibtnli8hwd.us-west-2.rds.amazonaws.com:3306/demo_sqoop --username cloudera --password cloudera --table matable --target-dir /user/cloudera/sqoopdata1 --m 1
+# Créer la BDD et la table:
+create database demo_sqoop
+use demo_sqoop
+create table ma_table(LastName varchar(255), FirstName varchar(255))
+insert into ma_table (LastName, FirstName) values ('nom1', 'prenom1'), ('nom2', 'prenom2'), ('nom3', 'prenom3'))
+# Vérifions avec:
+select * from ma_table
 
-sqoop export --connect jdbc:mysql://localhost/company --username
-root --password password --table employe_export --export-dir /
-data/employe
+#Récupérons la table avec Sqoop:
+sqoop import --connect jdbc:mysql:aws://ma-bdd.cbibtnli8hwd.us-west-2.rds.amazonaws.com:3306/demo_sqoop --username cloudera --password cloudera --table matable --target-dir /user/cloudera/sqoopdata1 --m 1
 
-sqoop import --connect jdbc:mysql://localhost:3306/ma-base  
---username root --password password --target-dir /data/employe_requete_1 --query 'select * from employe where id>20' --m 1
+# Exportons les données vers la table:
+sqoop export --connect jdbc:mysql:aws://ma-bdd.cbibtnli8hwd.us-west-2.rds.amazonaws.com:3306/demo_sqoop --username admin --password cloudera --table ma_table --export-dir /user/cloudera/sqoopdata1
+
+sqoop import --connect jdbc:mysql:aws://ma-bdd.cbibtnli8hwd.us-west-2.rds.amazonaws.com:3306/demo_sqoop --username cloudera --password cloudera --target-dir /user/cloudera/sqoopdata1 --query 'select * from ma_table where FirstName='prenom2'' --m 1
