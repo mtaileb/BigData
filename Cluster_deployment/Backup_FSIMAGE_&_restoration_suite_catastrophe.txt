@@ -1,0 +1,84 @@
+D'abord nous allons voir comment faire un back-up de fsimage, puis plus loin comment faire une récupération suite à catastrophe du fsimage à partir du Secondary Namenode suite à panne (simulée) du Namenode:
+
+#BACK-UP DU FSIMAGE:
+# Switcher vers l'utilisateur admin de Hadoop
+	su - toto
+
+# Faire entrer le Namenode en safemode:
+	hdfs dfsadmin -safemode enter
+
+# Demander au Namenode d'enregistrer le nouveau fsimage sur HDFS (il va automatiquement fusionner fsimage avec les editslogs):
+    hdfs dfsadmin -saveNamespace
+
+# Copier le fsimage dans un répertoire EN LOCAL BIEN SUR:
+    hdfs dfsadmin -fetchImage <local_dir>
+
+# C'est bon, le back-up est fait, on fait sortir le Namdenode du safemode:
+    hdfs dfsadmin -safemode leave
+
+
+# RECUPERATION DU FSIMAGE:
+# Simulation du désastre:
+# Arrêter le SNN:	
+hdfs --daemon stop secondarynamenode
+
+# Forcer un checkpoint on secondary namenode
+hdfs secondarynamenode -checkpoint force
+
+# Shutdown namenode
+/usr/local/hadoop/etc/hadoop/sbin/hadoop-daemon.sh stop
+
+# Contenu du dossier du Namenode:
+-rw-r--r--. 1 hdfs hadoop   37385 Jun 14 12:29 fsimage_0000000000000011104
+-rw-r--r--. 1 hdfs hadoop      62 Jun 14 12:29 fsimage_0000000000000011104.md5
+-rw-r--r--. 1 hdfs hadoop     441 Jun 14 14:23 edits_0000000000000011105-0000000000000011112
+-rw-r--r--. 1 hdfs hadoop      30 Jun 14 14:24 edits_0000000000000011113-0000000000000011114
+-rw-r--r--. 1 hdfs hadoop      30 Jun 14 14:24 edits_0000000000000011115-0000000000000011116
+-rw-r--r--. 1 hdfs hadoop      30 Jun 14 14:37 edits_0000000000000011117-0000000000000011118
+-rw-r--r--. 1 hdfs hadoop 1048576 Jun 14 14:37 edits_inprogress_0000000000000011119
+-rw-r--r--. 1 hdfs hadoop       6 Jun 14 14:37 seen_txid
+
+# Contenu du dossier du Secondary Namenode:
+-rw-r--r--. 1 root root     37466 Jun 14 14:37 fsimage_0000000000000011118
+-rw-r--r--. 1 root root        62 Jun 14 14:37 fsimage_0000000000000011118.md5
+drwxr-xr-x. 2 hdfs hadoop   12288 Jun 14 14:37 .
+-rw-r--r--. 1 hdfs hadoop     208 Jun 14 14:37 VERSION
+
+# Sur le Namenode, déplacer dfs.namenode.name.dir sur un autre répertoire
+[root@hdm name]# pwd
+/data/nn/dfs/name
+[root@hdm name]# mv current /tmp/backup_nn_current
+[root@hdm name]# mkdir current
+[root@hdm name]# chown toto:hadoop current
+
+# Au démarrage, le Namenode va poster une erreur:
+FATAL org.apache.hadoop.hdfs.server.namenode.NameNode: Exception in namenode join
+java.io.IOException: NameNode is not formatted.
+ at org.apache.hadoop.hdfs.server.namenode.FSImage.recoverTransitionRead(FSImage.java:210)
+ at org.apache.hadoop.hdfs.server.namenode.FSNamesystem.loadFSImage(FSNamesystem.java:627)
+ at org.apache.hadoop.hdfs.server.namenode.FSNamesystem.loadFromDisk(FSNamesystem.java:469)
+ at org.apache.hadoop.hdfs.server.namenode.NameNode.loadNamesystem(NameNode.java:403)
+ at org.apache.hadoop.hdfs.server.namenode.NameNode.initialize(NameNode.java:437)
+ at org.apache.hadoop.hdfs.server.namenode.NameNode.<init>(NameNode.java:609)
+ at org.apache.hadoop.hdfs.server.namenode.NameNode.<init>(NameNode.java:594)
+ at org.apache.hadoop.hdfs.server.namenode.NameNode.createNameNode(NameNode.java:1169)
+ at org.apache.hadoop.hdfs.server.namenode.NameNode.main(NameNode.java:1235)
+INFO org.apache.hadoop.util.ExitUtil: Exiting with status 1
+INFO org.apache.hadoop.hdfs.server.namenode.NameNode: SHUTDOWN_MSG:
+
+# Récupération: créer le répertoire spécifié dans dfs.namenode.checkpoint.dir (s'il n'existait pas, car il n'est pas obligatoire pour que Hadoop démarre/fonctionne)
+mkdir -p /data/secondary_nn/dfs/namesecondary
+chown toto:hadoop /data/secondary_nn/dfs/namesecondary
+
+# On fait un scp fsimage du Secondary Namenode vers le dfs.namenode.checkpoint.dir du Namenode
+[root@hdw3 namesecondary]# pwd
+/data/secondary_nn/dfs/namesecondary
+[root@hdw3 namesecondary]# scp -r current hdm:/data/secondary_nn/dfs/namesecondary/
+
+# Change owner et group sur le Namenode
+chown -R toto:hadoop /data/secondary_nn/dfs/namesecondary/*
+
+# Namenode import checkpoint
+hdfs namenode -importCheckpoint
+
+# Redémarrer le service HDFS (pas la peine de redémarer tout le Namenode)

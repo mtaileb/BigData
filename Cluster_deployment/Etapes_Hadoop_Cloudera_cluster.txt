@@ -1,0 +1,207 @@
+﻿#D'abord installer nano pour éditer certains fichiers de configuration
+sudo yum install nano
+
+# Désactiver SELinux en mettant SELINUX=DISABLED dans /etc/selinux/config
+sudo nano /etc/selinux/config
+
+# Pour limiter les I/O sur disque, ajouter à la fin de /etc/sysctl.conf:
+sudo nano /etc/sysctl.conf
+vm.swappiness=10
+# Pour les File Descriptors (nombre max de fichiers ouverts...) ajouter:
+fs.file-max=6815744       
+fs.aio-max-nr=1048576    
+net.core.rmem_default=262144    
+net.core.wmem_default=262144    
+net.core.rmem_max=16777216
+net.core.wmem_max=16777216
+net.ipv4.tcp_rmem=4096 262144 16777216
+net.ipv4.tcp_wmem=4096 262144 16777216
+# Il s'agit respectivement de:
+# Nombre total de file descriptors
+# Nombre maxi de requêtes Entrées/Sorties concurrentes
+# Taille par défaut du buffer par défaut reçu par l'OS
+# Taille par défaut du buffer par défaut envoyé par l'OS
+# Taille maxi du buffer reçu par l'OS
+# Taille maxi du buffer envoyé par l'OS
+# Tailles mini, par défaut et maxi des fenêtres reçues
+# Tailles mini, par défaut et maxi des fenêtres envoyées
+
+# Et pour les instances en VM, ajouter toujours dans /etc/sysctl.conf:
+vm.vfs_cache_pressure = 50
+
+# Ensuite charger ces nouveaux paramètres avec:
+sudo sysctl -p
+# Vérifions avec:
+sudo sysctl -a
+
+
+# Pour éviter les erreurs de 'files descriptor', relever la limite du nombre de fichiers qu'un utilisateur ou processeur peut ouvrir simulténament de 128 (valeur par défaut) à 4096:
+# Vérifions déjà les hard & soft limits:
+ulimit -Sn
+utlimit -Hn
+# Pour relever ces limites, éditons /etc/security/limits.conf comme suit:
+sudo nano /etc/security/limits.conf
+* soft nofile 32768
+* hard nofile 32768
+* soft nproc 32768
+* hard nproc 32768
+
+
+# Testons la vitesse du disque avec hdparm:
+yum install hdparm
+hdparm -t /dev/sda1
+# Si on n'obtient pas une vitesse supérieure à 70Mo/s alors il y a un souci (avec un SSD ça devrait être autour de 450Mo ou plus).
+
+# Désactiver les Transparent Huge Page:
+echo never > /sys/kernel/mm/transparent_hugepage/enabled
+echo never > /sys/kernel/mm/transparent_hugepage/defrag
+# Et pour que ça devienne permanent:
+chmod +x /etc/rc.d/rc.local
+/etc/rc.d/rc.local
+# Add the following line to the GRUB_CMDLINE_LINUX options in the /etc/default/grub file:
+transparent_hugepage=never
+# Ensuite exécuter:
+grub2-mkconfig -o /boot/grub2/grub.cfg
+
+# Autoriser le sudo de root sans mot de passe
+sudo visudo
+# Dans le fichier de configuration, décommenter et mettre toto à la place de %wheel
+toto ALL=(ALL) NOPASSWD:ALL
+
+# S'assurer que SSH client est installé sur le nameNode et SSH serveur est installé sur les Data Nodes
+
+# Générer les clés SSH sur chacun des DataNode
+ssh-keygen
+chmod 400 .ssh/id_rsa.pub && chmod 400 .ssh/id_rsa
+
+# Copier la clé publique sur le NameNode à partir de chacun des DataNodes
+ssh-copy-id toto@adresse-DataNode
+# Copier la clé pour le NameNode lui-même:
+cat .ssh/id_rsa.pub >> .ssh/authorized_keys
+
+# Ajouter le NameNode et tous les DataNode dans /etc/hosts du Data Node et inversement:
+127.0.0.1 localhost
+192.168.1.10 namenode
+192.168.1.11 datanode1
+192.168.1.12 datanode2
+192.168.1.13 datanode3
+192.168.1.14 datanode4
+192.168.1.15 datanode5
+
+# Désactiver chronyd sinon le runtime Cloudera tentera de l'utiliser:
+sudo systemctl status chronyd
+sudo systemctl stop chronyd && sudo systemctl disable chronyd
+sudo systemctl status chronyd
+# Installer ntp le démon ntpd:
+sudo yum -y install ntp
+
+# Editer ntp.conf pour désigner le namenode comme serveur ntp:
+sudo nano /etc/ntp.conf
+
+# S'assurer que toutes les lignes ci-dessous sont présentes ou ajoutées:
+restrict default kod nomodify notrap nopeer noquery
+restrict -6 default kod nomodify notrap nopeer noquery
+restrict 192.168.1.0 mask 255.255.255.0 nomodify notrap # Pour un réseau local 192.168.1.0
+restrict 127.0.0.1
+server 127.0.0.1 # Seulement sur le NameNode
+server 192.168.1.10 # Seulement sur les autres noeuds
+fudge 127.0.0.1 stratum 10 # Remplacer par 192.168.1.10 sur les noeuds
+driftfile /var/log/ntp/ntp.drift
+logfile /var/log/ntp/ntp.log
+
+# Puis relancer ntpd:
+sudo systemctl restart ntpd
+# Et l'activer pour qu'il s'active après chaque redémarrage:
+sudo systemctl enable ntpd
+
+# Editer /etc/sysconfig/network-scripts/ifcfg-enp1s0, voici le modèle:
+sudo nano /etc/sysconfig/network-scripts/ifcfg-enp1s0
+    
+TYPE=Ethernet
+PROXY_METHOD=none
+BROWSER_ONLY=no
+BOOTPROTO=none
+DEFROUTE=yes
+IPV4_FAILURE_FATAL=no
+IPV6INIT=yes
+IPV6_AUTOCONF=yes
+IPV6_DEFROUTE=yes
+IPV6_FAILURE_FATAL=no
+IPV6_ADDR_GEN_MODE=stable-privacy
+NAME=enp1s0
+UUID=bd7e674c-a1cc-40e5-9f4a-47ab8285a6f6
+DEVICE=enp1s0
+ONBOOT=yes
+IPADDR=192.168.1.10
+PREFIX=24
+GATEWAY=192.168.1.1
+IPV6_PRIVACY=no
+DNS1=192.168.1.1
+PEERDNS=no
+
+# Il vaut mieux arrêter/désactiver le firewall sur tous les noeuds:
+sudo systemctl stop firewalld && sudo systemctl disable firewalld
+
+# Sur le NameNode: si vous ne voulez pas entièrement désactiver le firewall: ouvrir le port 7182 sur TCP sur le NameNode pour que chaque Data Node puisse se connecter à Cloudera Manager Server
+sudo firewall-cmd --permanent --add-port=7180/tcp
+# Ou alors (à tester), ce qui serait plus sécurisé, fermer tous les ports mais ajouter les noeuds du réseau à la zone 'trusted':
+sudo firewall-cmd --permanent --zone=trusted --add-source=192.168.1.10/20
+# redémarrer le firewall
+sudo firewall-cmd --reload
+# Vérifier que le port est bien ouvert sur 7180/TCP
+sudo firewall-cmd --list-ports
+
+# Sur les DataNode: ouvrir le port 22 pour SSH:
+sudo firewall-cmd --permanent --add-port=22/tcp
+# redémarrer le firewall
+sudo firewall-cmd --reload
+# Vérifier que le port est bien ouvert sur 22/TCP
+sudo firewall-cmd --list-ports
+
+# En cas de souci avec SSH sur un DataNode, lancer:
+ssh-keygen -R <adresse-du-noeud>
+
+
+# Sur le NameNode: Télécharger et lancer le script d'installation de Cloudera Manager Server
+wget https://archive.cloudera.com/cm7/7.4.4/cloudera-manager-installer.bin
+chmod u+x cloudera-manager-installer.bin
+sudo ./cloudera-manager-installer.bin
+
+# Si l'installation est réussie, ce connecter à Cloudera Manager Server via un navigateur (localhost:7180) et login/motde-passe: admin/admin
+# Sélectionner les Data Nodes basé sur leur hostname
+# Sélectionner 'Install JDK provided by Cloudera'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

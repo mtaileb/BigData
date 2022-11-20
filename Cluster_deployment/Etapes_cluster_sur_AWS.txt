@@ -1,0 +1,266 @@
+Créer un compte sur aws.amazon.fr
+// Ce qui suit correspond à l'ancienne interface d'EC2, donc la sélectionner en haut à droite avant de poursuivre.
+A partir de la console de gestion, lancer une micro-instance EC2 (menu orangé en-haut à droite).
+Cocher 'Free tiers instances only' pour ne voir que les instances gratuites (pendant un an pour les nouveaux comptes)
+Choisir une instance Ubuntu LTS
+Ensuite cliquer sur 'Configurer l'instance' (en-bas à droite)
+Sélectionner 4 instances (au lieu de 1 par défaut)
+Dans le menu 'Subnet', sélectionner un des sous-réseaux proposés
+Cliquer sur 'Ajouter du stockage' (en-bas à droite)
+Vérifier que vous avez bien au-moins 8Go de stockage, et passer à 'Ajouter des tags'
+Ajouter le tag de (clé, valeur) (Name, Hadoop), et cliquer sur 'Configurer la sécurité des groupes'
+Créer une nouvelle paire clé privée-clé publique ou sélectionner une clé si vous en avez déjà une.
+Lancer les instances (en-bas à droite)
+Dans la page de confirmation, cliquer sur 'Voir les instances' pour visualiser leur démarrage
+Renommer chacune des instances (namenode, snn, datanode1, datanode2)
+On vérifie qu'on a bien entré les bons noms, puis on raffraichit la page jusqu'à ce que le statut de toutes les instances soit Status check '2/2 checks passed'
+
+# S'assurer que SSH client est installé sur le nameNode et SSH serveur est installé sur les Data Nodes
+
+# Générer les clés SSH sur chacun des DataNode
+ssh-keygen
+chmod 400 .ssh/id_rsa.pub && chmod 400 .ssh/id_rsa
+
+# Copier la clé publique sur le NameNode à partir de chacun des DataNodes
+ssh-copy-id toto@adresse-DataNode
+# Copier la clé pour le NameNode lui-même:
+cat .ssh/id_rsa.pub >> .ssh/authorized_keys
+         
+    Taper la commande (remplace avec les bons noms de fichier et d'instance namenode): 
+        scp -i ma-clé-RSA.pem ma-clé-RSA.pem ubuntu@addresse-DNS_de_l-instance.compute.amazonaws.com:~/
+    Ensuite on se connecte au NameNode:
+        ssh -i aws_micro_instances_keys.pem ubuntu@ec2-54-191-33-68.us-west-2.compute.amazonaws.com
+    Vérifier que la clé RSA est bien présente dans le répertoire du NameNode:
+        ls
+    Maintenant, ouvrir quatre terminaux et se connecter dans chacun à une des instances:
+        ssh -i ma-clé-RSA.pem ubuntu@addresse-DNS_de_l-instance.compute.amazonaws.com
+    Ensuite, il faut éditer /etc/hosts pour ajouter l'adresse IP et le hostname:
+        sudo nano /etc/hosts
+    Et remplacer la première ligne '127.0.0.1 localhost' par:
+        <adresse-IP> <nom-DNS-instance.compute.amazonaws.com>
+        
+// NE PAS FAIRE CETTE PARTIE SUR UNE 
+    Enregistrer et fermer avec avec Ctrl-O et Ctrl-X.
+    Faire la même chose avec toutes les autres instances (chacune avec son IP et nom DNS)
+    Lancer l'update et (le cas échéant) l'upgrade de la distro:
+        sudo apt-get update && sudo apt-get -y dist-upgrade
+    Une fois les mises-à-jours terminées, redémarrer les instances à travers le dashbord AWS, dans le menu 'Instance state'.
+
+Java est normalement déjà installé sur ces instances Ubuntu, mais vérifiez avec:
+    java -version
+Sinon l'installer:
+    sudo apt-get openjdk*
+    
+
+    Installons maintenant Hadoop, en commençant par récupérer et décompresser  l'archive:
+        wget https://downloads.apache.org/hadoop/core/hadoop-3.3.3/hadoop-3.3.3.tar.gz
+        sudo mv hadoop-3.3.3.tar.gz /usr/local/
+        cd /usr/local
+        sudo tar -xvzf hadoop-3.3.3.tar.gz
+        sudo mv hadoop-3.3.3/ hadoop
+        
+    Editons les variables de BashRC:
+        nano ~/.bashrc
+    Ajouter en fin de fichier:        
+        export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+        export HADOOP_HOME=/usr/local/hadoop
+        export HADOOP_CONF=$HADOOP_HOME/conf
+        export PATH=$PATH:$JAVA_HOME:$HADOOP_HOME/bin
+    Puis recharger le Bash:
+        source ~/.bashrc
+    On tape 'hadoop' à la ligne de commande pour vérifier que les variables sont bien fonctionnelles.
+    Maintenant on va configurer SSH sur les instances, ce qui permettra au NameNode de contrôler les autres noeuds en root. On lance sur le NameNode:
+
+# Créer les clés privée et publiques de SSH:
+ssh-keygen
+# Copier la clé du Namenode dans les fichiers authorized-keys des data nodes:
+ssh-copy-id 
+        
+Maintenant nous allons modifier le fichier de configuration de SSH du NameNode:
+    nano ~/.ssh/config
+On y ajouter les lignes suivantes:
+
+    Host namenode
+
+      HostName ec2-54-191-33-68.us-west-2.compute.amazonaws.com
+
+      User ubuntu
+
+      IdentityFile ~/.ssh/id_rsa
+
+
+    Host snn
+
+      HostName ec2-18-237-87-119.us-west-2.compute.amazonaws.com
+
+      User ubuntu
+
+      IdentityFile ~/.ssh/id_rsa
+
+
+    Host datanode1
+
+      HostName ec2-52-43-67-23.us-west-2.compute.amazonaws.com
+
+      User ubuntu
+
+      IdentityFile ~/.ssh/id_rsa
+
+
+    Host datanode2
+
+      HostName ec2-18-236-168-116.us-west-2.compute.amazonaws.com
+
+      User ubuntu
+
+      IdentityFile ~/.ssh/id_rsa
+
+On crée les répertoires de data sur CHAQUE NOEUD et on configure leurs permissions (commençons par le NameNode ensuite on copiera ses fichiers aux autres noeuds, ça sera plus rapide!):
+    sudo mkdir -p /usr/local/hadoop/hdfs/data && sudo chown -R ubuntu:ubuntu /usr/local/hadoop
+On a presque terminé!
+
+Il ne reste qu'à configurer les fichiers propres à Hadoop, qui sont:
+    $HADOOP_HOME/etc/hadoop/hadoop-env.sh
+    $HADOOP_HOME/etc/hadoop/core-site.xml
+    $HADOOP_HOME/etc/hadoop/hdfs-site.xml
+    $HADOOP_HOME/etc/hadoop/mapred-site.xml
+    $HADOOP_HOME/etc/hadoop/yarn-site.xml
+    $HADOOP_HOME/etc/hadoop/masters
+    $HADOOP_HOME/etc/hadoop/slaves
+    
+On commence!
+    sudo nano $HADOOP_HOME/etc/hadoop/hadoop-env.sh
+On copie ce qui suit:
+    export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.262.b10-1.el7.x86_64/jre
+    
+
+    sudo nano $HADOOP_HOME/etc/hadoop/core-site.xml
+On copie ce qui suit à l'intérieur des balises <configuration>:
+    <configuration>
+
+      <property>
+        <name>fs.defaultFS</name>
+        <value>hdfs://<DNS du NameNode>:9000</value>
+      </property>
+    </configuration>
+
+
+    sudo nano $HADOOP_HOME/etc/hadoop/hdfs-site.xml
+
+On copie ce qui suit à l'intérieur des balises <configuration>:
+    <configuration>
+
+      
+
+      <property>
+        <name>dfs.replication</name>
+        <value>2</value>
+      </property>
+      <property>
+        <name>dfs.namenode.name.dir</name>
+        <value>file:///usr/local/hadoop/hdfs/data</value>
+      </property>
+    </configuration>
+
+Editons maintenant les fichiers 'masters' et 'slaves' du NameNode ET du SNN:
+- Dans le fichier 'masters' (qui doit être présent dans le NameNode et le SNN), ajouter l'adresse DNS du NameNode, et en-dessous celle du SNN,
+- Dans le fichier 'slaves', ajouter l'adresse du Datanode1 et en-dessous celle du Datanode2.
+Penser à copier ces fichiers sur le SNN.
+Dans les DataNodes, pas besoin de fichier 'masters', juste un fichier 'slaves' avec seulement l'adresse DNS du DataNode local.
+
+// ATTENTION, MERCI D'ATTENDRE QUE TOUT LE MONDE AIT TERMINE AVANT DE LANCER LE FORMATAGE DE HDFS!
+
+# Maintenant formattons HDFS:
+hdfs namenode -format
+
+# Si le formatage s'est bien déroulé (voir le log qui s'affiche), on passe aux scripts de démarrage:
+cd /usr/local/hadoop/sbin
+./start-dfs.sh
+./start-yarn.sh
+# Vérifions que les processus sont bien lancés:
+jps
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

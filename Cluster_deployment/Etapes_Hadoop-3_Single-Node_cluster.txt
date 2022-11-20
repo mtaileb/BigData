@@ -1,0 +1,1084 @@
+﻿Administration: ajouter 'hdfs dfs -count /' et 'hdfs balancer' aux TP.
+
+PARTIE I: Hadoop cluster single-node avec Hadoop 3.3.2 et configuration de base
+
+    # Activer l'interface réseau après avoir récupéré son identifiant:
+
+    ip add
+
+    ifup enp0s3
+
+
+    #D'abord installer nano et wget et ssh (si pas installé déjà) pour éditer certains fichiers de configuration
+
+    sudo yum install nano
+
+    sudo yum install wget
+
+    # Si JPS n'est pas installé, installer le Java Devel:
+
+    sudo yum install java-1.8.0-openjdk-devel.x86_64
+
+
+    # Autoriser le sudo de toto sans mot de passe
+
+    $ sudo visudo
+
+    # Dans le fichier de configuration, décommenter et mettre toto à la place de %wheel
+
+    toto ALL=(ALL) NOPASSWD:ALL
+
+    # Ajouter la ligne suivante pour donner à l'utilisateur toto les privilèges root:
+
+    toto ALL=(ALL) ALL
+
+
+    #Vérifier que SSH et SSHd sont bien installés:
+
+    which ssh
+
+    which sshd
+
+    # Générer la clé SSH
+
+    ssh-keygen
+
+    chmod 400 .ssh/id_rsa.pub
+
+    chmod 400 .ssh/id_rsa
+
+
+
+
+
+    # Télécharger l'archive Hadoop:y
+
+    wget https://dlcdn.apache.org/hadoop/common/hadoop-3.3.2/hadoop-3.3.2.tar.gz
+
+    # Renommer l'archive simplement en 'hadoop':
+
+    sudo mv Downloads/hadoop-3.3.2.tar.gz /usr/local/hadoop.tar.gz
+
+    # Décompresser:
+
+    cd /usr/local
+
+    sudo tar -xvzf hadoop.tar.gz
+
+    mv hadoop-3.3.2/ /usr/local/hadoop
+
+
+
+    # PAS OBLIGATOIRE DE CONFIGURER LE RESEAU DANS DU SINGLENODE: 
+
+    # Dans /etc/hosts:
+
+    sudo nano /etc/hosts
+
+
+    127.0.0.1 localhost
+
+    10.0.2.10 namenode
+
+
+
+    # Pour identifier le nom de votre interface réseau:
+
+    ip add
+
+    # Pour déterminez votre name server:
+
+    grep "nameserver" /etc/resolv.conf
+
+
+
+    # Editer
+
+    nano /etc/sysconfig/network-scripts/ifcfg-enp1s0
+
+    Voici le modèle:
+
+    TYPE=Ethernet
+
+    PROXY_METHOD=none
+
+    BROWSER_ONLY=no
+
+    BOOTPROTO=none
+
+    DEFROUTE=yes
+
+    IPV4_FAILURE_FATAL=no
+
+    IPV6INIT=yes
+
+    IPV6_AUTOCONF=yes
+
+    IPV6_DEFROUTE=yes
+
+    IPV6_FAILURE_FATAL=no
+
+    IPV6_ADDR_GEN_MODE=stable-privacy
+
+    NAME=enp1s0
+
+    UUID=bd7e674c-a1cc-40e5-9f4a-47ab8285a6f6
+
+    DEVICE=enp1s0
+
+    ONBOOT=yes
+
+    IPADDR=10.0.2.10
+
+    PREFIX=24
+
+    GATEWAY=10.0.2.1
+
+    IPV6_PRIVACY=no
+
+    DNS1=192.168.1.1
+
+    PEERDNS=no
+
+    # FIN DE PAS OBLIGATOIRE DE CONFIGURER LE RESEAU
+
+
+
+    # Désactiver SELinux en mettant SELINUX=DISABLED dans /etc/selinux/config
+
+    sudo nano /etc/selinux/config
+
+
+
+    # Pour limiter les I/O sur disque, ajouter à la fin de /etc/sysctl.conf:
+
+    sudo nano /etc/sysctl.conf
+
+    # Et ajouter en fin de fichier:
+
+    vm.swappiness =10
+
+    # Et pour les instances en VM, ajouter:
+
+    vm.vfs_cache_pressure = 50
+
+    # Pour les File Descriptors (nombre max de fichiers ouverts...) ajouter:
+
+    fs.file-max=6815744       
+
+    fs.aio-max-nr=1048576    
+
+    net.core.rmem_default=262144    
+
+    net.core.wmem_default=262144    
+
+    net.core.rmem_max=16777216
+
+    net.core.wmem_max=16777216
+
+    net.ipv4.tcp_rmem=4096 262144 16777216
+
+    net.ipv4.tcp_wmem=4096 262144 16777216
+
+
+    /* Il s'agit respectivement de:
+
+    /* Nombre total de file descriptors
+
+    /* Nombre maxi de requêtes Entrées/Sorties concurrentes
+
+    /* Taille par défaut du buffer par défaut reçu par l'OS
+
+    /* Taille par défaut du buffer par défaut envoyé par l'OS
+
+    /* Taille maxi du buffer reçu par l'OS
+
+    /* Taille maxi du buffer envoyé par l'OS
+
+    /* Tailles mini, par défaut et maxi des frames reçues
+
+    /* Tailles mini, par défaut et maxi des frames envoyées
+
+
+    # Pour éviter les erreurs de 'files descriptor', relever la limite du nombre de fichiers qu'un utilisateur ou processeur peut ouvrir simulténament de 128 (valeur par défaut) à 4096:
+
+    # Vérifions déjà les hard & soft limits:
+
+    ulimit -Sn
+
+    utlimit -Hn
+
+    # Pour relever ces limites, éditons /etc/security/limits.conf comme suit:
+
+    sudo nano /etc/security/limits.conf
+
+    # Ajouter dans le fichier:
+
+    * soft nofile 32768
+
+    * hard nofile 32768
+
+    * soft nproc 32768
+
+    * hard nproc 32768
+
+
+    # Ensuite charger ces nouveaux paramètres avec:
+
+    sudo sysctl -p
+
+    # Vérifions avec:
+
+    sudo sysctl -a
+
+
+    # PAS OBLIGATOIRE
+
+    # Testons la vitesse du disque avec:
+
+    yum install hdparm
+
+    hdparm -t /dev/sda1
+
+    # Si on n'obtient pas une vitesse supérieure à 70Mo/s alors il y a un souci (sur un SSD ça devrait être autour de 450Mo ou plus).
+
+    # Astuce: pour tester la performance en écriture séquencielle du disque avec et sans activation du cache du disque, vous pouvez utiliser les commande suivantes:
+
+    # Cache activé:
+
+    hdparm -W1 /dev/sdb1
+
+    dd if=/dev/zero of=/mnt/dd-run bs=1024K / count=1024 oflag=direct conv=fdatasync
+
+    # Cache désactivé:
+
+    hdparm -W0 /dev/sdb1
+
+    dd if=/dev/zero of=/mnt/dd-run bs=1024K / count=1024 oflag=direct conv=fdatasync
+
+    # FIN DE PAS OBLIGATOIRE
+
+
+    # Désactiver les Transparent Huge Page:
+
+    # Ajouter à la fin de la ligne (et dans les guillemets) dans GRUB_CMDLINE_LINUX dans le fichier /etc/default/grub:
+
+    sudo nano /etc/default/grub
+
+    transparent_hugepage=never
+
+    # Ensuite exécuter:
+
+    sudo grub2-mkconfig -o /boot/grub2/grub.cfg
+
+
+    # Editons /.bashrc pour y inclure les variables d'environnement de Hadoop:
+
+    nano ~/.bashrc
+
+    #HADOOP VARIABLES START
+
+    export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.332.b09-1.el7_9.x86_64/jre
+
+    export HADOOP_INSTALL=/usr/local/hadoop
+
+    export PATH=$PATH:$HADOOP_INSTALL/bin
+
+
+    export PATH=$PATH:$HADOOP_INSTALL/sbin
+
+    export HADOOP_MAPRED_HOME=$HADOOP_INSTALL
+
+    export HADOOP_COMMON_HOME=$HADOOP_INSTALL
+
+    export HADOOP_HDFS_HOME=$HADOOP_INSTALL
+
+    export HADOOP_YARN_HOME=$HADOOP_INSTALL
+
+    export HADOOP_COMMON_LIB_NATIVE_DIR=$HADOOP_INSTALL/lib/native
+
+    export HADOOP_OPTS="-Djava.library.path=$HADOOP_INSTALL/lib"
+
+    #HADOOP VARIABLES END
+
+
+    # Puis on charge les variables:
+
+    source ~/.bashrc
+
+
+    # Editons les fichiers de configuration de Hadoop (dans /usr/local/hadoop/etc/hadoop) comme suit:
+
+    hadoop-env.sh:
+
+    cd  /usr/local/hadoop/etc/hadoop
+
+    sudo nano hadoop-env.sh
+
+    # Ajouter cette ligne:
+
+    export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.262.b10-1.el7.x86_64/jre
+
+    332.b09-1.e17_9
+
+    # Ajouter l'utilisateur toto au groupe hadoop:
+
+    sudo groupadd hadoop
+
+    sudo usermod -aG hadoop toto
+
+    # Vérifions:
+
+    groups toto
+
+    # On change la propriété du dossier hadoop pour le donner au user hadoop:
+
+    sudo chown -R toto:hadoop /usr/local/hadoop
+
+
+    # Avant d'éditer core-site.xml, créons un dossier temporaire pour Hadoop et attribuons-le à l'utilisateur toto:
+
+    sudo mkdir -p /app/hadoop/tmp && sudo chown toto:hadoop /app/hadoop/tmp
+
+
+    # Editons core-site.xml:
+
+    nano /usr/local/hadoop/etc/hadoop/core-site.xml
+
+
+    core-site.xml:
+
+    <configuration>
+
+
+        <property>
+
+
+        <name>hadoop.tmp.dir</name>
+
+
+        <value>/app/hadoop/tmp</value>
+
+
+        <description>A base for other temporary directories.</description>
+
+
+        </property>
+
+
+        <property>
+
+
+        <name>fs.default.name</name>
+
+
+        <value>hdfs://localhost:54310</value>
+
+
+    <description>The name of the default file system. A URI whose
+
+
+        scheme and authority determine the FileSystem implementation. The
+
+
+        uri's scheme determines the config property (fs.SCHEME.impl) naming
+
+
+        the FileSystem implementation class. The uri's authority is used to
+
+
+        determine the host, port, etc. for a filesystem.</description>
+
+
+        </property>
+
+
+    </configuration>
+
+
+
+    :q
+
+
+
+    # PAS LA PEINE DE FAIRE MAPRED-SITE.XML
+
+    # Le prochain fichier, mapred-site.xml, n'est pas nécessaire dans Hadoop 3. Sinon d'abord le copier à partir du DEFAULT:
+
+    cp /usr/local/hadoop/etc/hadoop/mapred-site.xml.template
+
+    /usr/local/hadoop/etc/hadoop/mapred-site.xml
+
+    # Puis mettre ceci dans le fichier:
+
+    sudo nano /usr/local/hadoop/etc/hadoop/mapred-site.xml
+
+
+    <configuration>
+
+    <property>
+
+    <name>mapred.job.tracker</name>
+
+    <value>localhost:54311</value>
+
+    <description>The host and port that the MapReduce job tracker runs
+
+    at. If "local", then jobs are run in-process as a single map
+
+    and reduce task.
+
+    </description>
+
+    </property>
+
+    </configuration>
+
+    # FIN DE PAS LA PEINE DE FAIRE MAPRED-SITE.XML
+
+
+    # Pour le prochain fichier hdfs-site.xml, nous avons d'abord besoin de créer les dossier du NameNode et du DataNode (pas de SNN pour l'instant):
+
+    sudo mkdir -p /usr/local/hadoop_store/hdfs/namenode
+
+    sudo mkdir -p /usr/local/hadoop_store/hdfs/datanode
+
+    sudo chown -R toto:hadoop /usr/local/hadoop_store
+
+
+    # On édite hdfs-site.xml:
+
+    nano /usr/local/hadoop/etc/hadoop/hdfs-site.xml
+
+
+    <configuration>
+
+
+
+        <property>
+
+
+        <name>dfs.replication</name>
+
+
+        <value>1</value>
+
+
+        <description>Default block replication.
+
+
+        The actual number of replications can be specified when the file is created.
+
+
+        The default is used if replication is not specified in create time.
+
+
+        </description>
+
+
+        </property>
+
+
+        <property>
+
+
+        <name>dfs.block.size</name>
+
+
+        <value>1048576</value>
+
+
+        </property>
+
+
+        <property>
+
+
+        <name>dfs.namenode.name.dir</name>
+
+
+        <value>file:/usr/local/hadoop_store/hdfs/namenode</value>
+
+
+        </property>
+
+
+        <property>
+
+
+        <name>dfs.datanode.data.dir</name>
+
+
+        <value>file:/usr/local/hadoop_store/hdfs/datanode</value>
+
+
+        </property>
+
+
+    </configuration>
+
+
+    # Maintenant formattons HDFS:
+
+    hdfs namenode -format
+
+
+    # S'assurer que authorized_keys est en chmod 400:
+
+    cat .ssh/id_rsa.pub >> .ssh/authorized_keys
+
+    chmod 400 .ssh/authorized_keys
+
+
+    # Si le formatage s'est bien déroulé (voir le log qui s'affiche), on passe aux scripts de démarrage:
+
+    cd /usr/local/hadoop/sbin
+
+    ./start-dfs.sh
+
+    ./start-yarn.sh
+
+
+    # Vérifions que les processus sont bien lancés:
+
+    jps
+
+
+    # Testons Hadoop avec un programme MapReduce en Java qui est déjà présent dans un JAR de Hadoop ('wordcount' est le nom de la classe dans le JAR):
+
+    hdfs dfs -put mary.txt
+
+    hadoop jar /usr/local/share/hadoop/mapreduce/hadoop-mapreduce-examples-3.3.2.jar wordcount brazil.txt /resultat
+
+
+    # Démarrage Hadoop 
+
+    cd /usr/local/hadoop/sbin
+
+    ./start-dfs.sh
+
+    ./start-yarn.sh
+
+    cd
+
+
+    # Récupération fichier brazil.txt 
+
+    wget http://scifiscripts.com/scripts/brazil.txt
+
+
+
+
+
+    # Création arborescence HDFS pour coller à l'arborescence locale 
+
+    hdfs dfs -mkdir /user
+
+    hdfs dfs -mkdir /user/toto
+
+
+    # Stockage du fichier sous HDFS 
+
+    hdfs dfs -put brazil.txt
+
+
+    # Comptage des mots
+
+    hadoop jar /usr/local/hadoop/share/hadoop/mapreduce/hadoop-mapreduce-examples-3.3.2.jar wordcount brazil.txt dir_resultat
+
+
+    HIVE
+
+    wget -b http://www-eu.apache.org/dist/hive/hive-1.2.2/apache-hive-1.2.2-bin.tar.gz
+
+
+
+    PARTIE II: Hadoop cluster single-node avec Hadoop 3.3.2 et configuration avancée
+
+
+    # Désactiver SELinux en mettant SELINUX=DISABLED dans /etc/selinux/config
+
+    nano /etc/selinux/config
+
+
+    # Pour ce qui suit penser à faire un append à partir d'un fichier fourni:
+
+    # Pour limiter les I/O sur disque, ajouter à la fin de /etc/sysctl.conf:
+
+    vm.swappiness =10
+
+    # Et pour les instances en VM, ajouter:
+
+    vm.vfs_cache_pressure = 50
+
+    # Pour les File Descriptors (nombre max de fichiers ouverts...) ajouter:
+
+    fs.file-max=6815744       
+
+    fs.aio-max-nr=1048576    
+
+    net.core.rmem_default=262144    
+
+    net.core.wmem_default=262144    
+
+    net.core.rmem_max=16777216
+
+    net.core.wmem_max=16777216
+
+    net.ipv4.tcp_rmem=4096 262144 16777216
+
+    net.ipv4.tcp_wmem=4096 262144 16777216
+
+
+    /* Il s'agit respectivement de:
+
+    /* Nombre total de file descriptors
+
+    /* Nombre maxi de requêtes entrées/Sorties concurrentes
+
+    /* Taille par défaut du buffer par défaut reçu par l'OS
+
+    /* Taille par défaut du buffer par défaut envoyé par l'OS
+
+    /* Taille maxi du buffer reçu par l'OS
+
+    /* Taille maxi du buffer envoyé par l'OS
+
+    /* Tailles mini, par défaut et maxi des fenêtres reçues
+
+    /* Tailles mini, par défaut et maxi des fenêtres envoyées
+
+
+
+    # Pour éviter les erreurs de 'files descriptor', relever la limite du nombre de fichiers qu'un utilisateur ou processeur peut ouvrir simulténament de 128 (valeur par défaut) à 4096:
+
+    # Vérifions déjà les hard & soft limits:
+
+    ulimit -Sn
+
+    utlimit -Hn
+
+    # Pour relever ces limites, éditons /etc/security/limits.conf comme suit:
+
+    * soft nofile 32768
+
+    * hard nofile 32768
+
+    * soft nproc 32768
+
+    * hard nproc 32768
+
+
+    # Ensuite charger ces nouveaux réglages avec:
+
+    sysctl -p
+
+    # Vérifions avec:
+
+    sysctl -a
+
+
+    # Testons la vitesse du disque avec:
+
+    yum install hdparm
+
+    hdparm -t /dev/sda1
+
+    # Si on n'obtient pas une vitesse supérieure à 70Mo/s alors il y a un souci (sur un SSD ça devrait être autour de 450Mo ou plus).
+
+
+    # Désactiver les Transparent Huge Page:
+
+    echo never > /sys/kernel/mm/transparent_hugepage/enabled
+
+    echo never > /sys/kernel/mm/transparent_hugepage/defrag
+
+    # Et pour que ça devienne permanent:
+
+    chmod +x /etc/rc.d/rc.local
+
+    /etc/rc.d/rc.local
+
+    # Add the following line to the GRUB_CMDLINE_LINUX options in the /etc/default/grub file
+
+    transparent_hugepage=never
+
+    # Ensuite exécuter:
+
+    grub2-mkconfig -o /boot/grub2/grub.cfg
+
+
+
+
+    # Dans /etc/hosts:
+
+    127.0.0.1 localhost
+
+    10.0.2.10 namenode
+
+
+    # Editer /etc/sysconfig/network-scripts/ifcfg-enp1s0, voici le modèle:
+
+    TYPE=Ethernet
+
+    PROXY_METHOD=none
+
+    BROWSER_ONLY=no
+
+    BOOTPROTO=none
+
+    DEFROUTE=yes
+
+    IPV4_FAILURE_FATAL=no
+
+    IPV6INIT=yes
+
+    IPV6_AUTOCONF=yes
+
+    IPV6_DEFROUTE=yes
+
+    IPV6_FAILURE_FATAL=no
+
+    IPV6_ADDR_GEN_MODE=stable-privacy
+
+    NAME=enp1s0
+
+    UUID=bd7e674c-a1cc-40e5-9f4a-47ab8285a6f6
+
+    DEVICE=enp1s0
+
+    ONBOOT=yes
+
+    IPADDR=10.0.2.10
+
+    PREFIX=24
+
+    GATEWAY=10.0.2.1
+
+    IPV6_PRIVACY=no
+
+    DNS1=192.168.1.1
+
+    PEERDNS=no
+
+
+    # Désactiver le firewall dans la VM (il sera possible de le réactiver après l'installation complète de Hadoop):
+
+    systemctl disable firewalld
+
+
+    # Vérifier si Java est déjà installé:
+
+    java -version
+
+
+    # Sinon, installer Java 8:
+
+    yum install java-1.8
+
+
+    # Se déplacer dans le répertoire root pour télécharger et installer Hadoop:
+
+    cd /root
+
+    wget https://dlcdn.apache.org/hadoop/common/hadoop-2.10.1/hadoop-2.10.1.tar.gz
+
+
+    # Créer un dossier /opt/yarn et y décompresser l'archive pour installer Hadoop:
+
+    mkdir -p /opt/yarn
+
+    cd /opt/yarn
+
+    tar -xvzf hadoop-2.10.1.tar.gz
+
+
+
+    # (si on a installé le Hadoop de base) Désactivons IPv6 en ajoutant ce qui suit dans hadoop-env.sh:
+
+    export HADOOP_OPTS=Djava.net.prefer.IPv4Stack=true (vérifier cette commande sur le web)
+
+
+    # Désactivons IPv6 en ajoutant ce qui suit dans hadoop-env.sh:
+
+    export HADOOP_OPTS=Djava.net.prefer.IPv4Stack=true (vérifier cette commande sur le web)
+
+
+    # Procédons maintenant à la création des divers utilisateurs dont nous aurons besoin (chacun sera le propriétaire des services qui lui seront confiés), qui feront partie du groupe 'hadoop':
+
+    groupadd hadoop
+
+    useradd -g hadoop yarn
+
+    useradd -g hadoop hdfs
+
+    useradd -g hadoop mapred
+
+
+    # Pour linstant ça nous suffit. Plus tard nous créeront aussi les utilisateurs hive, pig, hcatalog, hbase, zookeeper, oozie...
+
+
+    # Créons maintenant les répertoires qu'utilisera HDFS:
+
+    mkdir -p var/data/hadoop/hdfs/nn /* L'option '-p' crée les répertoires au-dessus
+
+    mkdir var/data/hadoop/hdfs/snn
+
+    mkdir var/data/hadoop/hdfs/dn
+
+    #Changeons aussi leur propriétaire:
+
+    chown -R hdfs:hadoop /var/data/hadoop/hdfs
+
+
+    # Créons un répertoire pour les logs de YARN:
+
+    mkdir -p /opt/yarn/hadoop-2.10.1/logs
+
+    chmod 755  /opt/yarn/hadoop-2.10.1/logs
+
+    chown yarn:hadoop  /opt/yarn/hadoop-2.10.1/logs
+
+
+    # Créons un répertoire pour les logs de HDFS:
+
+    mkdir /var/log/hadoop-2.10.1/logs/hdfs
+
+    chmod 755  /var/log/hadoop-2.10.1/logs/hdfs
+
+    chown hdfs:hadoop  /var/log/hadoop-2.10.1/logs/hdfs
+
+
+    # Créons un répertoire pour les logs de MAPRED:
+
+    mkdir /var/log/hadoop-2.10.1/logs/mapred
+
+    chmod 755  /var/log/hadoop-2.10.1/logs/mapred
+
+    chown mapred:hadoop  /var/log/hadoop-2.10.1/logs/mapred
+
+
+
+    # Editons les fichiers de configuration de Hadoop (dans /opt/yarn/hadoop-2.10.1/etc/hadoop) comme suit:
+
+    hadoop-env.sh:
+
+    export JAVA_HOME=$(readlink -f /usr/bin/java | sed "s:bin/java::")
+
+    export HADOOP_HEAPSIZE=500
+
+    export HADOOP_LOG_DIR=/var/log/hadoop-2.10.1/logs/hdfs
+
+    export HADOOP_CONF_DIR=/opt/yarn/hadoop-2.10.1
+
+
+    mapred-env.sh:
+
+    export JAVA_HOME=$(readlink -f /usr/bin/java | sed "s:bin/java::")
+
+    export HADOOP_MAPRED_IDENT_STRING=mapred
+
+    export HADOOP_MAPRED_PID_DIR=/var/run/hadoop/mapred
+
+    export HADOOP_MAPRED_LOG_DIR=/var/log/hadoop-2.10.1/logs/mapred
+
+    export HADOOP_JOB_HISTORYSERVER_HEAPSIZE=250
+
+
+    yarn-env.sh:
+
+    export JAVAHOME=/usr/lib/jvm/java-1.8.332.b09-1.el7_9.x86_64/
+
+    export YARN_HEAPSIZE=500
+
+    export YARN_RESOURCEMANAGER_HEAPSIZE=500
+
+    export YARN_NODEMANAGER_HEAPSIZE=500
+
+    export YARN_PID_DIR=/var/run/hadoop/yarn
+
+    export YARN_LOG_DIR=/opt/yarn/hadoop-2.10.1/logs
+
+
+    core-site.xml:
+
+    <configuration>
+
+        <property>
+
+            <name>fs.defaultFS</name>
+
+            <value>hdfs://localhost:8020</value>
+
+        </property>
+
+        <property>
+
+            <name>hadoop.http.staticuser.user</name>
+
+            <value>hdfs</value>
+
+        </property>
+
+        <property>
+
+            <name>fs.trash.interval</name>
+
+            <value>1440</value>
+
+        </property>
+
+    </configuration>
+
+
+    yarn-site.xml:
+
+    <configuration>
+
+        <property>
+
+            <name>yarn.nodemanager.aux-services></name>
+
+            <value>mapreduce_shuffle</value>
+
+        </property>
+
+        <property>
+
+            <name>yarn.nodemanager.aux-services.mapreduce.shuffle.class</name>
+
+            <value>org.apache.hadoop.mapred.ShuffleHandler</value>
+
+        </property>
+
+        <property>
+
+            <name>yarn.nodemanager.resource.memory-mb</name>
+
+            <value>4096</value>
+
+        </property>
+
+        <property>
+
+            <name>yarn.scheduler.minimum-allocation-mb</name>
+
+            <value>4096</value>
+
+        </property>
+
+    </configuration>
+
+
+    mapred-site.xml:
+
+    <configuration>
+
+        <property>mapreduce.framework.name</property>
+
+            <value>yarn</value>
+
+        </property>
+
+    </configuration>
+
+
+    hdfs-site.xml:
+
+    <configuration>
+
+        <property>
+
+            <name>dfs.replication</name>
+
+            <value>1</value>
+
+        </property>
+
+        <property>
+
+            <name>fs.default.name</name>
+
+            <value>hdfs://localhost:9000</value>
+
+        </property>
+
+            <name>dfs.namenode.name.dir</name>
+
+            <value>file:///var/data/hadoop/hdfs/nn</value>
+
+        <property>
+
+            <name>fs.checkpoint.dir</name>
+
+            <value>file:///var/data/hadoop/hdfs/snn</value>
+
+        </property>
+
+        <property>
+
+            <name>fs.checkpoint.edits.dir</name>
+
+            <value>file:///var/data/hadoop/hdfs/snn</value>
+
+        </property>
+
+        <property>
+
+            <name>dfs.datanode.data.dir<name>
+
+            <value>file:///var/data/hadoop/hdfs/dn</value>
+
+        </property>
+
+    </configuration>
+
+
+    # On peut maintenant démarrer les daemons HDFS:
+
+    su hdfs
+
+    cd /opt/yarn/hadoop-2.10.1/sbin
+
+    ./hadoop-daemon start namenode
+
+    ./hadoop-daemon start secondarynamenode
+
+    ./hadoop-daemon start datanode
+
+
+
+    # Démarrons aussi les daemons Y:
+
+    exit (pour revenir à root)
+
+    su yarn
+
+    cd /opt/yarn/hadoop-2.10.1/sbin
+
+    ./yarn-daemon start resourcemanager
+
+    ./yarn-daemon start nodemanager
+
+    ./mr-jobhistory-daemon start historyserver
+
+
+
+    # Pour vérifier si ces démons tournent bien, nous avons besoin de la commande JPS, qui fait partie du paquetage java-devel.
+
+    # Voyons quels paquetages nous propose Yum:
+
+    yum list java*devel*
+
+    # Installons celui qui correspond à notre version de Java:
+
+    yum install java-1.8.0-openjdk-devel.x86_64
+
+    # Lançons maintenant JPS:
+
+    jps
+
+
+
+
+PARTIE III: Hadoop cluster single-node avec Hadoop 3.3.2 et Pig, Hive, Spark

@@ -1,0 +1,294 @@
+
+
+Calculation:
+HDD = 100*3 = 300TB of minimal storage space on the cluster.
+
+Storage per node = 3TB * 4disks/node = 12TB
+
+Number of nodes = 36 i.e. 36*12TB = 432TB which >300TB necessary => OK, cluster storage space will be sufficient.
+
+Is it enough for the buffer storage too? 432TB - 300TB = 132TB which is approx. 30% of 432TB => OK, buffer is enough (but barely).
+
+Software installation:
+OS:: CentOS 7.9
+Hadoop 3.2.2
+Java version java-1.8.0-openjdk-1.8.0.262.b10-1.el7.x86_64
+
+
+# Deactivate SELinux with SELINUX=DISABLED in /etc/selinux/config
+sudo nano /etc/selinux/config
+
+# As root, add user and group:
+groupadd hadoop
+useradd –g hadoop hadoop
+passwd hadoop
+visudo
+# Update hduser into visudo file (at the bottom on this file), it will allow hduser to use sudo command:
+hadoop ALL=(ALL) ALL
+# And for passwordless sudo:
+hadoop ALL=(ALL) NOPASSWD:ALL
+
+# To limit I/O sur disque, add to /etc/sysctl.conf:
+sudo nano /etc/sysctl.conf
+vm.swappiness=10
+fs.file-max=6815744       
+fs.aio-max-nr=1048576    
+net.core.rmem_default=262144    
+net.core.wmem_default=262144    
+net.core.rmem_max=16777216
+net.core.wmem_max=16777216
+net.ipv4.tcp_rmem=4096 262144 16777216
+net.ipv4.tcp_wmem=4096 262144 16777216
+
+# Load with:
+sudo sysctl -p
+
+
+# To avoid 'files descriptor' errors:
+sudo nano /etc/security/limits.conf
+* soft nofile 32768
+* hard nofile 32768
+* soft nproc 32768
+* hard nproc 32768
+
+# Deactivate Transparent Huge Pages:
+echo never > /sys/kernel/mm/transparent_hugepage/enabled
+echo never > /sys/kernel/mm/transparent_hugepage/defrag
+# Make permanent:
+chmod +x /etc/rc.d/rc.local
+/etc/rc.d/rc.local
+# Add the following line to the GRUB_CMDLINE_LINUX options in the /etc/default/grub file:
+transparent_hugepage=never
+# Then load with:
+grub2-mkconfig -o /boot/grub2/grub.cfg
+
+# Generate SSH keys on each node:
+ssh-keygen
+chmod 400 .ssh/id_rsa.pub
+
+# Copy public key on NameNode from each DataNode:
+ssh-copy-id toto@adresse-DataNode
+# Copy NN key to its own authorized_keys:
+cat .ssh/id_rsa.pub >> .ssh/authorized_keys
+
+# Add in /etc/hosts of all nodes:
+127.0.0.1 localhost
+192.168.1.10 namenode
+192.168.1.11 datanode1
+192.168.1.12 datanode2
+192.168.1.13 datanode3
+192.168.1.14 datanode4
+192.168.1.15 datanode5
+...
+192.168.1.136 datanode36
+
+# Edit on each node /etc/sysconfig/network-scripts/ifcfg-enp1s0 according to sample:
+sudo nano /etc/sysconfig/network-scripts/ifcfg-enp1s0
+    
+TYPE=Ethernet
+PROXY_METHOD=none
+BROWSER_ONLY=no
+BOOTPROTO=none
+DEFROUTE=yes
+IPV4_FAILURE_FATAL=no
+IPV6INIT=yes
+IPV6_AUTOCONF=yes
+IPV6_DEFROUTE=yes
+IPV6_FAILURE_FATAL=no
+IPV6_ADDR_GEN_MODE=stable-privacy
+NAME=enp1s0
+UUID=bd7e674c-a1cc-40e5-9f4a-47ab8285a6f6
+DEVICE=enp1s0
+ONBOOT=yes
+IPADDR=192.168.1.10
+PREFIX=24
+GATEWAY=192.168.1.1
+IPV6_PRIVACY=no
+DNS1=192.168.1.1
+PEERDNS=no
+
+# Deactivate firewall on each node:
+sudo systemctl stop firewalld && sudo systemctl disable firewalld
+
+# install Java:
+yum install -y install openjdk-8-jdk-headless
+
+# Install Hadoop:
+wget https://downloads.apache.org/hadoop/common/hadoop-3.2.2/hadoop-3.2.2.tar.gz
+sudo mv hadoop-3.2.2.tar.gz /usr/local/
+sudo tar xvzf hadoop-3.2.2.tar.gz
+# Edit variables in BashRC:
+nano ~/.bashrc
+# Add:
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+
+export HADOOP_HOME=/usr/local/hadoop
+export HADOOP_CONF=$HADOOP_HOME/conf
+export PATH=$PATH:$JAVA_HOME:$HADOOP_HOME/bin
+Reload Bash:
+source ~/.bashrc
+
+# We create data directories on each node:
+sudo mkdir -p /usr/local/hadoop/hdfs/data && sudo chown -R hadoop:hadoop /usr/local/hadoop/hdfs/data
+
+Configuring Hadoop files:
+    nano $HADOOP_HOME/etc/hadoop/hadoop-env.sh
+# Add:
+    export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.262.b10-1.el7.x86_64/jre
+    
+# Edit core-site.xml:
+vi core-site.xml
+<property>
+<name>fs.defaultFS</name>
+<value>hdfs://localhost:9000</value>
+<description> The name of the default file system. A URI whose scheme and authority
+determine the FileSystem implementation. The uri's scheme determines the config
+property (fs.SCHEME.impl) naming the FileSystem implementation class. The uri's
+authority is used to determine the host, port, etc. for a filesystem. </description>
+</property>
+<property>
+<name>hadoop.tmp.dir</name>
+<value> /tmp/hadoop-${user.name}</value>
+<description> A base for other temporary directories. </description>
+</property>
+<property>
+<name>hadoop.http.staticuser.user</name>
+<value>hdfs</value>
+<description> The user name to filter as, on static web filters while rendering content. An
+example use is the HDFS web UI (user to be used for browsing files). </description>
+</property>
+<property>
+<name>fs.trash.interval</name>
+<value>1440</value>
+<description> Number of minutes after which the checkpoint gets deleted. If zero, the
+trash feature is disabled. This option may be configured both on the server and the client.
+If trash is disabled server side then the client side configuration is checked. If trash is
+enabled on the server side then the value configured on the server is used and the client
+configuration value is ignored. </description>
+</property>
+
+# Edit mapred-site.xml:
+vi mapred-site.xml
+<property>
+<name>mapreduce.framework.name</name>
+<value>yarn</value>
+<description> The runtime framework for executing MapReduce jobs. Can be one of local,
+classic or yarn. </description>
+</property>
+
+# Edit yarn-site.xml:
+vi yarn-site.xml
+<property>
+<name>yarn.nodemanager.aux-services</name>
+<value>mapreduce_shuffle</value>
+<description> A comma separated list of services where service name should only contain
+a-zA-Z0-9_ and can not start with numbers </description>
+</property>
+<property>
+<name>yarn.nodemanager.aux-services.mapreduce_shuffle.class</name>
+<value> org.apache.hadoop.mapred.ShuffleHandler </value>
+</property>
+
+# Edit hdfs-site.xml:
+vi hdfs-site.xml
+<property>
+<name>dfs.datanode.data.dir</name>
+<value>/home/hduser/datadir/hdfs/dn/</value>
+<description> Determines where on the local filesystem an DFS data node should store its
+blocks. If this is a comma-delimited list of directories, then data will be stored in all named
+directories, typically on different devices. The directories should be tagged with
+corresponding storage types ([SSD]/[DISK]/[ARCHIVE]/[RAM_DISK]) for HDFS storage
+policies. The default storage type will be DISK if the directory does not have a storage type
+tagged explicitly. Directories that do not exist will be created if local filesystem permission
+allows. </description>
+</property>
+<property>
+<name>dfs.namenode.name.dir</name>
+<value>/home/hduser/datadir/hdfs/nn/</value>
+<description> Determines where on the local filesystem the DFS name node should store
+the name table(fsimage). If this is a comma-delimited list of directories then the name table
+is replicated in all of the directories, for redundancy. </description>
+</property>
+<property>
+<name>dfs.blocksize</name>
+<value>134217728</value>
+<description> The default block size for new files, in bytes. You can use the following suffix
+(case insensitive): k(kilo), m(mega), g(giga), t(tera), p(peta), e(exa) to specify the size (such
+as 128k, 512m, 1g, etc.), Or provide complete size in bytes (such as 134217728 for 128
+MB). </description>
+</property>
+<property>
+<name>dfs.replication</name>
+<value>1</value>
+<description> Default block replication. The actual number of replications can be specified
+when the file is created. The default is used if replication is not specified in create time.
+</description>
+</property>
+<property>
+<name>dfs.namenode.checkpoint.dir</name>
+<value>/home/hduser/datadir/hdfs/snn</value>
+<description> Determines where on the local filesystem the DFS secondary name node
+should store the temporary images to merge. If this is a comma-delimited list of directories
+then the image is replicated in all of the directories for redundancy. </description>
+</property>
+<property>
+<name>dfs.namenode.checkpoint.edits.dir</name>
+<value>/home/hduser/datadir/hdfs/snn</value>
+<description> Determines where on the local filesystem the DFS secondary name node
+should store th e temporary edits to merge. If this is a comma-delimited list of
+directories then the edits is replicated in all of the directories for redundancy. Default value
+is same as dfs.namenode.checkpoint.dir </description>
+</property>
+<property>
+<name>dfs.namenode.http-address</name>
+<value>localhost:50070</value>
+<description> The address and the base port where the dfs namenode web ui will listen
+on. </description></property>
+<property>
+<name>dfs.namenode.checkpoint.period</name>
+<value>1800</value>
+<description> The number of seconds between two periodic checkpoints. </description>
+</property>
+
+# Edit yarn-env.sh:
+vi yarn-env.sh
+Set below exports
+export JAVA_HOME=/home/hadoop/java
+export YARN_HOME=/home/hadoop/hadoop
+export YARN_LOG_DIR=/home/hadoop/datadir/yarn/log
+export YARN_PID_DIR=/home/hadoop/datadir/yarn/pid
+
+# Edit 'masters' and 'slaves' files of NameNode and SNN:
+- In 'masters' files (on NameNode and le SNN), add DNS of NameNode, and under it that of SNN,
+- In file 'slaves', add DNS of datanodes.
+# No need for 'masters' file on data nodes.
+
+# Format HDFS:
+hdfs namenode -format
+
+# Start HDFS and YARN:
+cd /usr/local/hadoop/sbin
+./start-dfs.sh
+./start-yarn.sh
+# Check with:
+jps
+
+# Create folder in hdfs:
+hadoop fs -mkdir -p /user/hadoop/mapreduce/input
+hadoop fs -mkdir -p /user/hadoop/mapreduce/output
+hadoop fs -ls /
+Create a Text.txt file containing word data for wordcount: vi Text.txt => save it
+hadoop fs -put Text.txt /user/hduser/mapreduce/input
+hadoop jar /etc/hadoop/share/hadoop/mapreduce/hadoop-mapreduce-examples-
+3.2.2.jar wordcount /user/hduser/mapreduce/input
+/user/hduser/mapreduce/output/wordcount
+
+# Configuration for Client Node:
+1. Create a commodity hardware server
+2. Create Hadoop_conf, spark_conf, hive_conf folder(as per tools you want to run on your
+cluster, you can have multiple client server per cluster)
+3. Copy configuration files of Hadoop, Spark, Hive and others to client node like if you you
+want to run Hadoop command copy core-site.xml, mapred-site.xml fair-scheduler.xml & hdfs-
+site.xml from NN to client node
+4. Test Client Node, run some hadoop command on client node
+
