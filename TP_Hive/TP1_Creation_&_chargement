@@ -1,0 +1,98 @@
+--#######################################################################################################################################
+--#######################################################################################################################################
+--
+--#######################################################################################################################################
+CREATE DATABASE IF NOT EXISTS retrievedb;
+USE retrievedb;
+
+--#######################################################################################################################################
+CREATE TABLE IF NOT EXISTS retrievedb.rawfirstname (
+  firstnameid    string,
+  firstname      string,
+  sex            string
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
+
+// Attention chargement en LOCAL!
+
+LOAD DATA LOCAL INPATH '/home/cloudera/TPHive/rawfirstname.csv' OVERWRITE INTO TABLE retrievedb.rawfirstname;
+
+--#######################################################################################################################################
+CREATE TABLE IF NOT EXISTS retrievedb.rawlastname (
+  lastnameid    string,	
+  lastname      string
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
+
+LOAD DATA LOCAL INPATH '/home/cloudera/TPHive/rawlastname.csv' OVERWRITE INTO TABLE retrievedb.rawlastname;
+
+--#######################################################################################################################################
+CREATE TABLE IF NOT EXISTS retrievedb.rawperson (
+  persid         string,
+  firstnameid    string,
+  lastnameid     string
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
+
+LOAD DATA LOCAL INPATH '/home/cloudera/TPHive/rawperson.csv' OVERWRITE INTO TABLE retrievedb.rawperson;
+
+--#######################################################################################################################################
+CREATE TABLE IF NOT EXISTS retrievedb.rawdatetime (
+  id            string,
+  datetimes     string,
+  monthname     string,
+  yearnumber    string,
+  monthnumber   string,
+  daynumber     string,
+  hournumber    string,
+  minutenumber  string,
+  ampm          string
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
+
+LOAD DATA LOCAL INPATH '/home/cloudera/TPHive/rawdatetime.csv' OVERWRITE INTO TABLE retrievedb.rawdatetime;
+
+#######################################################################################################################################
+CREATE TABLE IF NOT EXISTS retrievedb.rawaddress (
+  id            string,
+  Postcode      string,
+  Latitude      string,
+  Longitude     string,
+  Easting       string,
+  Northing      string,
+  GridRef       string,
+  District      string,
+  Ward          string,
+  DistrictCode  string,
+  WardCode      string,
+  Country       string,
+  CountyCode    string,
+  Constituency  string,
+  TypeArea      string
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
+
+LOAD DATA LOCAL INPATH '/home/cloudera/TPHive/rawaddress.csv' OVERWRITE INTO TABLE retrievedb.rawaddress;
+
+--#######################################################################################################################################
+--#######################################################################################################################################
+CREATE TABLE IF NOT EXISTS retrievedb.rawaddresshistory (
+  id            string,
+  pid           string,
+  aid           string,
+  did1          string,
+  did2          string
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
+
+LOAD DATA LOCAL INPATH '/home/cloudera/TPHive/rawaddresshistory.csv' OVERWRITE INTO TABLE retrievedb.rawaddresshistory;
+#######################################################################################################################################
+CREATE TABLE IF NOT EXISTS retrievedb.rawaccount (
+  id         string,
+  pid        string,
+  accountno  string,
+  balance    string
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ',';
+
+LOAD DATA LOCAL INPATH '/home/cloudera/TPHive/rawaccount.csv' OVERWRITE INTO TABLE retrievedb.rawaccount;
