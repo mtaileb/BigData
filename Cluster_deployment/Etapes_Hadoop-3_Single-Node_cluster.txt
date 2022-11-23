@@ -17,7 +17,7 @@ PARTIE I: Hadoop cluster single-node avec Hadoop 3.3.2 et configuration de base
 
     # Si JPS n'est pas installé, installer le Java Devel:
 
-    sudo yum install java-1.8.0-openjdk-devel.x86_64
+    sudo yum install java-1.8.0-openjdk-devel.x86_64 -y
 
 
     # Autoriser le sudo de toto sans mot de passe
@@ -94,7 +94,7 @@ PARTIE I: Hadoop cluster single-node avec Hadoop 3.3.2 et configuration de base
 
     # Editer
 
-    nano /etc/sysconfig/network-scripts/ifcfg-enp1s0
+    sudo nano /etc/sysconfig/network-scripts/ifcfg-enp1s0
 
     Voici le modèle:
 
@@ -156,11 +156,11 @@ PARTIE I: Hadoop cluster single-node avec Hadoop 3.3.2 et configuration de base
 
     # Et ajouter en fin de fichier:
 
-    vm.swappiness =10
+    vm.swappiness=10
 
     # Et pour les instances en VM, ajouter:
 
-    vm.vfs_cache_pressure = 50
+    vm.vfs_cache_pressure=50
 
     # Pour les File Descriptors (nombre max de fichiers ouverts...) ajouter:
 
@@ -236,9 +236,9 @@ PARTIE I: Hadoop cluster single-node avec Hadoop 3.3.2 et configuration de base
 
     # Testons la vitesse du disque avec:
 
-    yum install hdparm
+    sudo yum install hdparm -y
 
-    hdparm -t /dev/sda1
+    sudo hdparm -t /dev/sda1
 
     # Si on n'obtient pas une vitesse supérieure à 70Mo/s alors il y a un souci (sur un SSD ça devrait être autour de 450Mo ou plus).
 
@@ -246,7 +246,7 @@ PARTIE I: Hadoop cluster single-node avec Hadoop 3.3.2 et configuration de base
 
     # Cache activé:
 
-    hdparm -W1 /dev/sdb1
+    sudo hdparm -W1 /dev/sda1
 
     dd if=/dev/zero of=/mnt/dd-run bs=1024K / count=1024 oflag=direct conv=fdatasync
 
