@@ -1,14 +1,4 @@
 
-
-Calculation:
-HDD = 100*3 = 300TB of minimal storage space on the cluster.
-
-Storage per node = 3TB * 4disks/node = 12TB
-
-Number of nodes = 36 i.e. 36*12TB = 432TB which >300TB necessary => OK, cluster storage space will be sufficient.
-
-Is it enough for the buffer storage too? 432TB - 300TB = 132TB which is approx. 30% of 432TB => OK, buffer is enough (but barely).
-
 Software installation:
 OS:: CentOS 7.9
 Hadoop 3.2.2
