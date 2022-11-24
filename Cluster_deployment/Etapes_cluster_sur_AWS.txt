@@ -15,18 +15,17 @@ Dans la page de confirmation, cliquer sur 'Voir les instances' pour visualiser l
 Renommer chacune des instances (namenode, snn, datanode1, datanode2)
 On vérifie qu'on a bien entré les bons noms, puis on raffraichit la page jusqu'à ce que le statut de toutes les instances soit Status check '2/2 checks passed'
 
-# S'assurer que SSH client est installé sur le nameNode et SSH serveur est installé sur les Data Nodes
-
-# Générer les clés SSH sur chacun des DataNode
+# S'assurer que SSH client est installé sur le NameNode et SSH serveur est installé sur les Data Nodes (rappel: Hadoop communique entre les noeuds avec SSH)
+# Générer les clés SSH sur chacun des noeuds (nn, snn, dn)
 ssh-keygen
 chmod 400 .ssh/id_rsa.pub && chmod 400 .ssh/id_rsa
 
-# Copier la clé publique sur le NameNode à partir de chacun des DataNodes
+# Copier la clé publique du NameNode sur chacun des DataNodes, ainsi le NameNode pourra communiquer avec les Datanodes
 ssh-copy-id toto@adresse-DataNode
 # Copier la clé pour le NameNode lui-même:
 cat .ssh/id_rsa.pub >> .ssh/authorized_keys
          
-    Taper la commande (remplace avec les bons noms de fichier et d'instance namenode): 
+    Taper la commande (remplacer avec les bons noms de fichier et d'instance namenode): 
         scp -i ma-clé-RSA.pem ma-clé-RSA.pem ubuntu@addresse-DNS_de_l-instance.compute.amazonaws.com:~/
     Ensuite on se connecte au NameNode:
         ssh -i aws_micro_instances_keys.pem ubuntu@ec2-54-191-33-68.us-west-2.compute.amazonaws.com
@@ -39,7 +38,6 @@ cat .ssh/id_rsa.pub >> .ssh/authorized_keys
     Et remplacer la première ligne '127.0.0.1 localhost' par:
         <adresse-IP> <nom-DNS-instance.compute.amazonaws.com>
         
-// NE PAS FAIRE CETTE PARTIE SUR UNE 
     Enregistrer et fermer avec avec Ctrl-O et Ctrl-X.
     Faire la même chose avec toutes les autres instances (chacune avec son IP et nom DNS)
     Lancer l'update et (le cas échéant) l'upgrade de la distro:
@@ -49,7 +47,7 @@ cat .ssh/id_rsa.pub >> .ssh/authorized_keys
 Java est normalement déjà installé sur ces instances Ubuntu, mais vérifiez avec:
     java -version
 Sinon l'installer:
-    sudo apt-get openjdk*
+    sudo apt-get install openjdk-8-jdk
     
 
     Installons maintenant Hadoop, en commençant par récupérer et décompresser  l'archive:
