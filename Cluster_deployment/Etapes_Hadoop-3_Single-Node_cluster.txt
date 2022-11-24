@@ -57,7 +57,7 @@ PARTIE I: Hadoop cluster single-node avec Hadoop 3.3.2 et configuration de base
 
     # Renommer l'archive simplement en 'hadoop':
 
-    sudo mv Downloads/hadoop-3.3.2.tar.gz /usr/local/hadoop.tar.gz
+    sudo mv hadoop-3.3.2.tar.gz /usr/local/hadoop.tar.gz
 
     # Décompresser:
 
@@ -65,7 +65,7 @@ PARTIE I: Hadoop cluster single-node avec Hadoop 3.3.2 et configuration de base
 
     sudo tar -xvzf hadoop.tar.gz
 
-    mv hadoop-3.3.2/ /usr/local/hadoop
+    mv hadoop-3.3.2 hadoop
 
 
 
@@ -200,7 +200,7 @@ PARTIE I: Hadoop cluster single-node avec Hadoop 3.3.2 et configuration de base
     /* Tailles mini, par défaut et maxi des frames envoyées
 
 
-    # Pour éviter les erreurs de 'files descriptor', relever la limite du nombre de fichiers qu'un utilisateur ou processeur peut ouvrir simulténament de 128 (valeur par défaut) à 4096:
+    # Pour éviter les erreurs de 'files descriptor', relever la limite du nombre de fichiers qu'un utilisateur ou processus peut ouvrir simulténament de 128 (valeur par défaut) à 4096:
 
     # Vérifions déjà les hard & soft limits:
 
@@ -318,8 +318,6 @@ PARTIE I: Hadoop cluster single-node avec Hadoop 3.3.2 et configuration de base
     # Ajouter cette ligne:
 
     export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-1.8.0.262.b10-1.el7.x86_64/jre
-
-    332.b09-1.e17_9
 
     # Ajouter l'utilisateur toto au groupe hadoop:
 
@@ -546,8 +544,8 @@ PARTIE I: Hadoop cluster single-node avec Hadoop 3.3.2 et configuration de base
 
     # Testons Hadoop avec un programme MapReduce en Java qui est déjà présent dans un JAR de Hadoop ('wordcount' est le nom de la classe dans le JAR):
 
-    hdfs dfs -put mary.txt
-
+    wget http://www.scifiscripts.com/scripts/brazil.txt
+    
     hadoop jar /usr/local/share/hadoop/mapreduce/hadoop-mapreduce-examples-3.3.2.jar wordcount brazil.txt /resultat
 
 
