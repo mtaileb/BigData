@@ -1,0 +1,6 @@
+# Hortonworks 2.6.5:
+hadoop jar /usr/hdp/2.6.5.0-292/hadoop-mapreduce/hadoop-mapreduce-examples.jar wordcount /user/mari
+a_dev/brazil.txt /user/maria_dev/wordcount_resultat
+
+# Cloudera 5.13:
+hadoop jar /usr/lib/hadoop-mapreduce-examples-2.6.0-cdh5.13.0.jar wordcount /user/cloudera/brazil.txt
