@@ -22,17 +22,17 @@ AS SELECT no_occurences, previous_title, current_title FROM wikilogs;
 
 // Pages générant le plus de visites vers Wikipedia:
 SELECT * FROM wikilogs_view
-SORT BY no_occurences DESC LIMIT 50;
+SORT BY no_occurences DESC LIMIT 50; // Utiliser ORDER BY avec Impala
 
 // Pages Googles générant le plus de visites vers Wikipedia:
 SELECT * FROM wikilogs_view
 WHERE previous_title = 'other-google'
-SORT BY no_occurences DESC;
+SORT BY no_occurences DESC; // Utiliser ORDER BY avec Impala
 
 // Pages FB générant le plus de visites vers Wikipedia:
 SELECT * FROM wikilogs_view
 WHERE previous_title = 'other-facebook'
-SORT BY no_occurences DESC;
+SORT BY no_occurences DESC; // Utiliser ORDER BY avec Impala
 
 // Comptons les individus avec 'current_title=0':
 SELECT COUNT(*) from wikilogs_view where current_title=0;
