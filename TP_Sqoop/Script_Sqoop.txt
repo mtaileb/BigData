@@ -32,7 +32,45 @@ sentry
 #Récupérons la table avec Sqoop:
 sqoop import --connect jdbc:mysql://localhost:3306/demo_sqoop --username root --password cloudera --table ma_table --target-dir /user/cloudera/sqoopdata1 --m 1
 
-# Exportons les données vers la table:
-sqoop export --connect jdbc:mysql:aws://ma-bdd.cbibtnli8hwd.us-west-2.rds.amazonaws.com:3306/demo_sqoop --username admin --password cloudera --table ma_table --export-dir /user/cloudera/sqoopdata1
+# Vérifions:
+[cloudera@quickstart ~]$ hdfs dfs -ls sqoopdata2
+# Qui retourne:
+Found 2 items
+-rw-r--r--   1 cloudera cloudera          0 2023-01-14 06:23 sqoopdata2/_SUCCESS
+-rw-r--r--   1 cloudera cloudera         39 2023-01-14 06:23 sqoopdata2/part-m-00000
 
-sqoop import --connect jdbc:mysql:aws://ma-bdd.cbibtnli8hwd.us-west-2.rds.amazonaws.com:3306/demo_sqoop --username cloudera --password cloudera --target-dir /user/cloudera/sqoopdata1 --query 'select * from ma_table where FirstName='prenom2'' --m 1
+Visualisons le contenu du fichier part-m-00000 :
+[cloudera@quickstart ~]$ hdfs dfs -cat sqoopdata2/part-m-00000
+Qui retourne :
+nom1,prenom1
+nom2,prenom2
+nom3,prenom3
+Maintenant, copions ce fichier sur le système de fichier Linux local afin de l’éditer en ajoutant une entrée :
+[cloudera@quickstart ~]$ hdfs dfs -get sqoopdata2/part-m-00000 ~
+Editons le fichier :
+[cloudera@quickstart ~]$ nano part-m-00000
+Créons une seule entrée nom4,prenom4 et enregistrons.
+Maintenant nous avons besoin de le copier sur HDFS pour le rendre accessible à Sqoop pour l’exporter dans une nouvelle table :
+hdfs dfs -mkdir sqoopdata3 && hdfs dfs -put part-m-00000 sqoopdata3/part-m-00000
+Vérifions :
+hdfs dfs -cat sqoopdata3/part-m-00000
+Cette commande renvoie bien :
+nom1,prenom1
+nom2,prenom2
+nom3,prenom3
+nom4,prenom4
+Exportons maintenant ce fichier dans la même table avec comme but d’ajouter l’entrée nom4,prenom4 :
+sqoop export --connect jdbc:mysql://localhost:3306/demo_sqoop --username root --password cloudera --table ma_table --export-dir /user/cloudera/sqoopdata3 --m 1
+Vérifions dans MySQL :
+mysql> select * from ma_table;
++----------+-----------+
+| LastName | FirstName |
++----------+-----------+
+| nom1     | prenom1   |
+| nom2     | prenom2   |
+| nom3     | prenom3   |
+| nom4     | prenom4   |
++----------+-----------+
+L’opération est donc réussie.
+
+Allons maintenant dans Hive.
