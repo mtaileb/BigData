@@ -29,12 +29,12 @@ SELECT * FROM wikilogs_view
 WHERE previous_title = 'other-google'
 SORT BY no_occurences DESC;
 
-// pages FB générant le plus de visites vers Wikipedia:
+// Pages FB générant le plus de visites vers Wikipedia:
 SELECT * FROM wikilogs_view
 WHERE previous_title = 'other-facebook'
 SORT BY no_occurences DESC;
 
 // Comptons les individus avec 'current_title=0':
-select count(*) from wikilogs_view where current_title=0;
+SELECT COUNT(*) from wikilogs_view where current_title=0;
 
 
