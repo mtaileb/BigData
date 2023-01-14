@@ -1,13 +1,36 @@
+# Se connecter à MySQL sur Cloudera 5.13:
+mysql -u root -p cloudera
+
 # Créer la BDD et la table:
-create database demo_sqoop
-use demo_sqoop
-create table ma_table(LastName varchar(255), FirstName varchar(255))
-insert into ma_table (LastName, FirstName) values ('nom1', 'prenom1'), ('nom2', 'prenom2'), ('nom3', 'prenom3'))
+create database demo_sqoop;
+use demo_sqoop;
+create table ma_table(LastName varchar(255), FirstName varchar(255));
+insert into ma_table (LastName, FirstName) values ('nom1', 'prenom1'), ('nom2', 'prenom2'), ('nom3', 'prenom3');
 # Vérifions avec:
-select * from ma_table
+select * from ma_table;
+
+# Testons Sqoop sur la BDD locale dans Cloudera Sandbox 5.13:
+sqoop list-databases --connect jdbc:mysql://localhost/ --password cloudera --username root
+Warning: /usr/lib/sqoop/../accumulo does not exist! Accumulo imports will fail.
+Please set $ACCUMULO_HOME to the root of your Accumulo installation.
+23/01/13 14:38:27 INFO sqoop.Sqoop: Running Sqoop version: 1.4.6-cdh5.13.0
+23/01/13 14:38:27 WARN tool.BaseSqoopTool: Setting your password on the command-line is insecure. Consider using -P instead.
+23/01/13 14:38:28 INFO manager.MySQLManager: Preparing to use a MySQL streaming resultset.
+information_schema
+cm
+firehose
+hue
+metastore
+mysql
+nav
+navms
+oozie
+retail_db
+rman
+sentry
 
 #Récupérons la table avec Sqoop:
-sqoop import --connect jdbc:mysql:aws://ma-bdd.cbibtnli8hwd.us-west-2.rds.amazonaws.com:3306/demo_sqoop --username cloudera --password cloudera --table matable --target-dir /user/cloudera/sqoopdata1 --m 1
+sqoop import --connect jdbc:mysql://localhost:3306/demo_sqoop --username root --password cloudera --table ma_table --target-dir /user/cloudera/sqoopdata1 --m 1
 
 # Exportons les données vers la table:
 sqoop export --connect jdbc:mysql:aws://ma-bdd.cbibtnli8hwd.us-west-2.rds.amazonaws.com:3306/demo_sqoop --username admin --password cloudera --table ma_table --export-dir /user/cloudera/sqoopdata1
