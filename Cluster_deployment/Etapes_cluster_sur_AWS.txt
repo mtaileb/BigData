@@ -20,6 +20,12 @@ On vérifie qu'on a bien entré les bons noms, puis on raffraichit la page jusqu
 ssh-keygen
 chmod 400 .ssh/id_rsa.pub && chmod 400 .ssh/id_rsa
 
+# Editer /etc/ssh/sshd_config:
+PermitRootLogin yes
+RSA authentication yes
+Pubkeyauthentication yes
+AuthorizeKeyFile .ssh/authorized_keys .ssh/authorized_keys2
+
 # Copier la clé publique du NameNode sur chacun des DataNodes, ainsi le NameNode pourra communiquer avec les Datanodes
 ssh-copy-id toto@adresse-DataNode
 # Copier la clé pour le NameNode lui-même:
